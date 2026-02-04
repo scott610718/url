@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的短網址系統</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔗</text></svg>">
+    <script type="text/javascript" src="https://unpkg.com/qr-code-styling@1.5.0/lib/qr-code-styling.js"></script>
+    <style>
+        :root { --primary: #2c3e50; --accent: #3498db; --bg: #f4f7f6; --danger: #e74c3c; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; color: #333; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--accent); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 20px auto; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .container { max-width: 800px; margin: 40px auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .hidden { display: none !important; }
+        header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #eee; padding-bottom: 20px; }
+        header h1 { margin: 0; color: var(--primary); }
+        .footer { text-align: center; margin-top: 40px; font-size: 0.8rem; color: #aaa; }
+        
+        #login-panel { text-align: center; }
+        input[type="password"], input[type="text"], input[type="url"] { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { background: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 1rem; transition: 0.2s; }
+        button:hover { background: var(--accent); }
+        button.secondary { background: #95a5a6; }
+        button.danger { background: var(--danger); }
+        button.small-btn { padding: 5px 10px; font-size: 0.9rem; margin-left: 10px; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
+        .tab-btn { flex: 1; padding: 10px; background: #eee; border: none; border-radius: 6px; cursor: pointer; color: #555; }
+        .tab-btn.active { background: var(--primary); color: white; font-weight: bold; }
+        #links-container { max-height: 500px; overflow-y: auto; border: 1px solid #eee; border-radius: 6px; padding: 0 10px; }
+        .link-item { border-bottom: 1px solid #eee; padding: 15px 0; display: flex; justify-content: space-between; align-items: center; }
+        .link-info { flex: 1; min-width: 0; }
+        .link-title { font-weight: bold; font-size: 1.1rem; color: var(--primary); }
+        .link-url { font-size: 0.9rem; color: #7f8c8d; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .link-meta { font-size: 0.8rem; color: #bdc3c7; margin-top: 4px; }
+        .link-actions { display: flex; gap: 8px; flex-shrink: 0; }
+        .btn-icon { padding: 6px 12px; font-size: 0.9rem; }
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
+        .modal { background: white; padding: 30px; border-radius: 12px; width: 90%; max-width: 400px; text-align: center; }
+        .qr-controls { margin: 15px 0; text-align: left; background: #f9f9f9; padding: 15px; border-radius: 8px; }
+        .control-group { margin-bottom: 10px; }
+        .control-group label { display: block; font-size: 0.9rem; margin-bottom: 5px; color: #666; }
+    </style>
+</head>
+<body>
+    <div id="redirect-view" class="container hidden" style="text-align: center;">
+        <div class="loader"></div><p>正在前往目的地...</p>
+    </div>
+    <div id="admin-view" class="hidden">
+        <div class="container">
+            <header><h1>短網址管理系統</h1><p>Link Management System</p></header>
+            <div id="login-panel">
+                <p>請輸入管理密碼</p>
+                <input type="password" id="admin-pwd" placeholder="Password" style="max-width: 200px;"><br><br>
+                <button onclick="checkLogin()">登入</button>
+            </div>
+            <div id="dashboard-panel" class="hidden">
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="switchTab('create')">➕ 新增連結</button>
+                    <button class="tab-btn" onclick="switchTab('list')">📋 所有列表</button>
+                </div>
+                <div id="tab-create">
+                    <div class="control-group"><label>原始長網址</label><input type="url" id="new-url" placeholder="https://..." onchange="autoFetchTitle()"></div>
+                    <div class="control-group"><label>標題</label><input type="text" id="new-title" placeholder="留空則自動抓取"></div>
+                    <div class="control-group"><label>短代碼 (選填)</label><input type="text" id="new-shortid" placeholder="例如: my-link"></div>
+                    <div class="control-group"><label>備註</label><input type="text" id="new-note" placeholder="例如: 會議用"></div>
+                    <br><button onclick="createLink()" style="width:100%">建立短網址</button><div id="create-msg" style="margin-top:10px; text-align:center;"></div>
+                </div>
+                <div id="tab-list" class="hidden">
+                    <button onclick="loadLinks()" class="secondary" style="font-size:0.8rem; margin-bottom:10px;">🔄 重新整理</button>
+                    <div id="links-container"><div class="loader"></div></div>
+                </div>
+            </div>
+            <div class="footer">Powered by <a href="#" style="color:#aaa;text-decoration:none;">Famidoc Tool Kit</a></div>
+        </div>
+    </div>
+    <div id="qr-modal" class="modal-overlay hidden">
+        <div class="modal">
+            <h3>QR Code 設定</h3>
+            <div id="qr-canvas-container" style="margin: 10px auto;"></div>
+            <div class="qr-controls">
+                <div class="control-group"><label>顏色</label><input type="color" id="qr-color" value="#2c3e50" onchange="updateQR()"></div>
+                <div class="control-group"><label>中間 Logo</label><input type="file" id="qr-logo-file" accept="image/*" onchange="handleLogoUpload(this)"></div>
+            </div>
+            <button onclick="downloadQR()">下載圖片</button><button class="secondary" onclick="closeQRModal()">關閉</button>
+        </div>
+    </div>
+    <script>
+        // ==========================================
+        // ★★★ 請將下方引號內的文字換成你的 GAS 網址 ★★★
+        const GAS_URL = "請在此貼上你的GAS網址"; 
+        // ==========================================
+
+        const ADMIN_PWD = "1234"; // 預設密碼
+        const urlParams = new URLSearchParams(window.location.search);
+        const id = urlParams.get('id');
+        let qrCodeObj = null; let currentQrUrl = "";
+
+        if (id) {
+            document.getElementById('redirect-view').classList.remove('hidden');
+            fetch(`${GAS_URL}?action=getLink&id=${id}`).then(r=>r.json()).then(data=>{
+                if(data.status==="success"){
+                    fetch(`${GAS_URL}?action=addClick&id=${id}`,{method:'POST'});
+                    window.location.replace(data.url);
+                }else{document.getElementById('redirect-view').innerHTML=`<h3 style="color:red">找不到連結</h3>`;}
+            });
+        } else { document.getElementById('admin-view').classList.remove('hidden'); }
+
+        function checkLogin(){ if(document.getElementById('admin-pwd').value===ADMIN_PWD){
+            document.getElementById('login-panel').classList.add('hidden');
+            document.getElementById('dashboard-panel').classList.remove('hidden');
+            initQRCode(); }else{alert("密碼錯誤");} }
+
+        function switchTab(t){
+            document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+            document.querySelectorAll('#tab-create,#tab-list').forEach(d=>d.classList.add('hidden'));
+            if(t==='create'){document.querySelector('.tab-btn:nth-child(1)').classList.add('active');document.getElementById('tab-create').classList.remove('hidden');}
+            else{document.querySelector('.tab-btn:nth-child(2)').classList.add('active');document.getElementById('tab-list').classList.remove('hidden');loadLinks();}
+        }
+        function autoFetchTitle(){if(document.getElementById('new-url').value)document.getElementById('new-title').placeholder="系統自動抓取中...";}
+        function createLink(){
+            const btn=document.querySelector('button[onclick="createLink()"]');const msg=document.getElementById('create-msg');
+            const p={action:"create",url:document.getElementById('new-url').value,title:document.getElementById('new-title').value,shortId:document.getElementById('new-shortid').value,note:document.getElementById('new-note').value};
+            if(!p.url){alert("請輸入網址");return;}
+            btn.disabled=true;btn.innerText="處理中...";msg.innerText="";
+            fetch(GAS_URL,{method:"POST",body:JSON.stringify(p)}).then(r=>r.json()).then(d=>{
+                btn.disabled=false;btn.innerText="建立短網址";
+                if(d.status==="success"){
+                    const u = window.location.origin + window.location.pathname + '?id=' + d.shortId;
+                    msg.innerHTML=`<div style="color:green;margin-bottom:5px;">成功！</div><div style="font-weight:bold;margin-bottom:5px;">${u}</div><button class="secondary small-btn" onclick="copyToClip('${u}')">複製</button>`;
+                    document.getElementById('new-url').value="";document.getElementById('new-title').value="";document.getElementById('new-shortid').value="";
+                }else{msg.innerHTML=`<span style="color:red">失敗: ${d.message}</span>`;}
+            });
+        }
+        function loadLinks(){
+            const c=document.getElementById('links-container');c.innerHTML='<div class="loader"></div>';
+            fetch(`${GAS_URL}?action=getAll`).then(r=>r.json()).then(r=>{
+                if(r.status!=="success"){c.innerHTML="載入失敗";return;}
+                let h="";r.data.forEach(i=>{
+                    const u=window.location.origin+window.location.pathname+'?id='+i.shortId;
+                    h+=`<div class="link-item"><div class="link-info"><div class="link-title">${i.title||'(無)'} <small>(${i.clicks} hits)</small></div><div class="link-url"><a href="${u}" target="_blank">${u}</a></div><div class="link-meta">${i.shortId}|${new Date(i.createdDate).toLocaleDateString()}|${i.note}</div></div><div class="link-actions"><button class="btn-icon" onclick="copyToClip('${u}')">複製</button><button class="btn-icon secondary" onclick="openQR('${u}')">QR</button><button class="btn-icon danger" onclick="deleteLinkItem('${i.shortId}')">🗑️</button></div></div>`;
+                });c.innerHTML=h;
+            });
+        }
+        function deleteLinkItem(id){if(confirm("確定刪除？"))fetch(GAS_URL,{method:"POST",body:JSON.stringify({action:"delete",id:id})}).then(r=>r.json()).then(d=>{loadLinks();});}
+        function copyToClip(t){navigator.clipboard.writeText(t).then(()=>alert("已複製"));}
+        function initQRCode(){qrCodeObj=new QRCodeStyling({width:250,height:250,type:"svg",data:"#",dotsOptions:{color:"#2c3e50",type:"rounded"},backgroundOptions:{color:"#ffffff"}});}
+        function openQR(u){currentQrUrl=u;document.getElementById('qr-modal').classList.remove('hidden');updateQR();}
+        function closeQRModal(){document.getElementById('qr-modal').classList.add('hidden');}
+        function updateQR(){if(!qrCodeObj)return;qrCodeObj.update({data:currentQrUrl,dotsOptions:{color:document.getElementById('qr-color').value}});document.getElementById('qr-canvas-container').innerHTML="";qrCodeObj.append(document.getElementById('qr-canvas-container'));}
+        function handleLogoUpload(i){if(i.files&&i.files[0]){const r=new FileReader();r.onload=function(e){qrCodeObj.update({image:e.target.result});};r.readAsDataURL(i.files[0]);}}
+        function downloadQR(){qrCodeObj.download({name:"qr-code",extension:"png"});}
+    </script>
+</body>
+</html>
