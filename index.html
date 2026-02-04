@@ -88,10 +88,10 @@
     <script>
         // ==========================================
         // ★★★ 請將下方引號內的文字換成你的 GAS 網址 ★★★
-        const GAS_URL = "請在此貼上你的GAS網址"; 
+        const GAS_URL = "https://script.google.com/macros/s/AKfycbxOjPEu-oMBhQnFWf-MbiFD-UZh3x51Hunto-fq9zwbm6r8t2LfekQgvfePg2x-kJ2ZXQ/exec"; 
         // ==========================================
 
-        const ADMIN_PWD = "1234"; // 預設密碼
+        const ADMIN_PWD = "is0718"; // 預設密碼
         const urlParams = new URLSearchParams(window.location.search);
         const id = urlParams.get('id');
         let qrCodeObj = null; let currentQrUrl = "";
@@ -152,4 +152,5 @@
         function downloadQR(){qrCodeObj.download({name:"qr-code",extension:"png"});}
     </script>
 </body>
+
 </html>
